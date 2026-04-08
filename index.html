@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แบบสำรวจร้านอาหารที่จะไปทาน</title>
+    <title>ระบบบริหารจัดการ Poll ร้านอาหาร</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -11,62 +11,43 @@
     <script>
         tailwind.config = {
             theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            light: '#e6f4f1',
-                            DEFAULT: '#9ad0c2',
-                            dark: '#265073',
-                        }
-                    }
-                }
+                extend: { colors: { brand: { light: '#e6f4f1', DEFAULT: '#9ad0c2', dark: '#265073' } } }
             }
         }
     </script>
-
     <style>
-        body {
-            background-color: #f0fdfa; /* Light mint background */
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.95);
-            box-shadow: 0 10px 30px rgba(45, 106, 79, 0.08);
-            backdrop-filter: blur(10px);
-        }
-        .option-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .option-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        }
+        body { background-color: #f0fdfa; font-family: 'Segoe UI', sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.98); box-shadow: 0 15px 35px rgba(45, 106, 79, 0.1); }
+        .admin-only { border: 2px dashed #9ad0c2; position: relative; }
+        .admin-label { position: absolute; top: -12px; left: 10px; background: #9ad0c2; color: white; padding: 0 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 md:p-8">
+<body class="min-h-screen flex items-center justify-center p-4">
 
-    <div class="glass-card rounded-3xl w-full max-w-2xl p-6 md:p-8 border-t-4 border-brand">
+    <div class="glass-card rounded-3xl w-full max-w-2xl p-6 md:p-10 border-t-8 border-brand">
         
-        <div class="mb-8">
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">แบบสำรวจร้านอาหารที่จะไปทาน</h1>
-            <h2 class="text-xl font-semibold text-gray-700 mb-2">(Restaurant Poll)</h2>
-            <p class="text-gray-500">ช่วยกันเลือกหน่อยครับ/ค่ะ ว่าอยากไปทานร้านไหน?</p>
+        <div class="mb-8 group relative" id="headerContainer">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <h1 id="displayTitle" class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">แบบสำรวจร้านอาหาร</h1>
+                    <p id="displayDesc" class="text-gray-500">ช่วยกันเลือกหน่อยครับ/ค่ะ ว่าอยากไปทานร้านไหน?</p>
+                </div>
+                <button id="btnEditHeader" onclick="editHeader()" class="hidden bg-gray-100 hover:bg-gray-200 p-2 rounded-lg ml-2 transition">
+                    <i class="fa-solid fa-pen-to-square text-brand-dark"></i>
+                </button>
+            </div>
         </div>
 
-        <div class="bg-brand-light rounded-2xl p-5 mb-8">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">ระยะเวลาแบบสำรวจ</h3>
+        <div id="adminDateSection" class="hidden bg-brand-light rounded-2xl p-5 mb-8 admin-only">
+            <span class="admin-label">ระยะเวลาแบบสำรวจ (Admin Only)</span>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">วันเริ่มต้น</label>
-                    <div class="relative">
-                        <input type="date" id="startDate" class="w-full pl-4 pr-10 py-2.5 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
-                    </div>
+                    <input type="date" id="startDate" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">วันสิ้นสุด</label>
-                    <div class="relative">
-                        <input type="date" id="endDate" class="w-full pl-4 pr-10 py-2.5 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
-                    </div>
+                    <input type="date" id="endDate" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none">
                 </div>
             </div>
         </div>
@@ -74,238 +55,186 @@
         <div class="mb-8">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-gray-800">ตัวเลือกร้านอาหาร</h3>
-                <button onclick="addOption()" class="bg-brand hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm flex items-center">
-                    <i class="fa-solid fa-plus mr-2"></i> เพิ่มร้านใหม่
+                <button id="adminAddBtn" onclick="addOption()" class="hidden bg-brand hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
+                    <i class="fa-solid fa-plus mr-1"></i> เพิ่มร้าน
                 </button>
             </div>
-            
-            <div id="optionsList" class="space-y-3">
-                </div>
+            <div id="optionsList" class="space-y-3"></div>
         </div>
 
-        <div class="bg-brand-light rounded-2xl p-5">
-            <h3 class="text-lg font-bold text-gray-800 mb-4">ส่งคำตอบและแชร์</h3>
-            <div class="flex flex-col sm:flex-row gap-3">
-                <button onclick="shareEmail()" class="flex-1 bg-white hover:bg-gray-50 text-gray-800 px-6 py-3 rounded-xl font-bold shadow-sm transition flex items-center justify-center border border-gray-200">
-                    <i class="fa-solid fa-envelope mr-2"></i> ส่งอีเมล
-                </button>
-                <button onclick="shareLink()" class="flex-1 bg-white hover:bg-gray-50 text-gray-800 px-6 py-3 rounded-xl font-bold shadow-sm transition flex items-center justify-center border border-gray-200">
-                    <i class="fa-solid fa-link mr-2"></i> คัดลอกลิงก์
-                </button>
-            </div>
+        <div id="adminShareSection" class="hidden border-t border-gray-100 pt-6">
+            <button onclick="copyVoterLink()" class="w-full bg-brand-dark hover:bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold transition flex items-center justify-center shadow-lg">
+                <i class="fa-solid fa-share-nodes mr-2"></i> คัดลอกลิงก์ส่งให้ผู้ร่วมโหวต
+            </button>
+            <p class="text-center text-xs text-gray-400 mt-3">* ลิงก์สำหรับผู้โหวตจะถูกล็อกสิทธิ์การแก้ไขโดยอัตโนมัติ</p>
         </div>
 
     </div>
 
     <script>
-        // ข้อมูลตั้งต้นตามดีไซน์
-        let options = [
-            { id: 1, name: 'ร้านซูชิ อร่อยเหาะ', subName: 'Delicious Sushi', score: 3, emoji: '🍣' },
-            { id: 2, name: 'ร้านสเต็ก ย่างก้าว', subName: 'Step Steakhouse', score: 3, emoji: '🍔' },
-            { id: 3, name: 'ร้านอาหารไทย ทิพย์สมัย', subName: 'Thipsamai Thai', score: 3, emoji: '🍜' },
-            { id: 4, name: 'ร้านแกมซา', subName: 'Thai', score: 3, emoji: '🥘' }
-        ];
+        // ตรวจสอบสิทธิ์จาก URL Parameter
+        const params = new URLSearchParams(window.location.search);
+        const isAdmin = params.get('auth') === 'admin123'; // รหัสผ่านจำลองผ่าน URL
+        const hasVoted = localStorage.getItem('voted_status') === 'true';
+
+        // ข้อมูลเริ่มต้น
+        let pollData = {
+            title: "โหวตร้านอาหารประจำเดือน",
+            desc: "เลือกทีมที่คุณอยากไปทานร่วมกันมากที่สุด (1 ท่าน / 1 โหวต)",
+            options: [
+                { id: 1, name: 'ร้านซูชิ อร่อยเหาะ', sub: 'Delicious Sushi', score: 12, emoji: '🍣' },
+                { id: 2, name: 'ร้านสเต็ก ย่างก้าว', sub: 'Step Steakhouse', score: 8, emoji: '🍔' }
+            ]
+        };
+
+        function initApp() {
+            // อัปเดต UI ตามสิทธิ์
+            if (isAdmin) {
+                document.getElementById('btnEditHeader').classList.remove('hidden');
+                document.getElementById('adminDateSection').classList.remove('hidden');
+                document.getElementById('adminAddBtn').classList.remove('hidden');
+                document.getElementById('adminShareSection').classList.remove('hidden');
+            }
+            
+            // โหลดข้อมูลจาก LocalStorage (ถ้ามี)
+            const savedData = localStorage.getItem('poll_content');
+            if (savedData) pollData = JSON.parse(savedData);
+
+            updateDisplay();
+        }
+
+        function updateDisplay() {
+            document.getElementById('displayTitle').innerText = pollData.title;
+            document.getElementById('displayDesc').innerText = pollData.desc;
+            renderOptions();
+        }
 
         function renderOptions() {
-            const listContainer = document.getElementById('optionsList');
-            listContainer.innerHTML = '';
+            const list = document.getElementById('optionsList');
+            list.innerHTML = '';
 
-            if(options.length === 0) {
-                listContainer.innerHTML = '<div class="text-center text-gray-400 py-6 bg-white rounded-2xl border border-dashed border-gray-300">ยังไม่มีตัวเลือกร้านอาหาร คลิกปุ่มเพิ่มร้านใหม่</div>';
-                return;
-            }
-
-            options.forEach(opt => {
+            pollData.options.forEach(opt => {
                 const div = document.createElement('div');
-                div.className = 'option-card flex flex-col sm:flex-row justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 gap-4';
+                div.className = 'flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm';
                 
+                let actionArea = '';
+                if (isAdmin) {
+                    // Admin: เห็นคะแนนและปุ่มจัดการ
+                    actionArea = `
+                        <div class="flex items-center gap-4">
+                            <div class="text-right mr-2">
+                                <span class="block text-[10px] text-gray-400 font-bold uppercase">Score</span>
+                                <span class="text-lg font-bold text-brand-dark">${opt.score}</span>
+                            </div>
+                            <button onclick="deleteOption(${opt.id})" class="text-red-300 hover:text-red-500 p-2"><i class="fa-solid fa-trash-can"></i></button>
+                        </div>
+                    `;
+                } else if (hasVoted) {
+                    // Voter ที่โหวตแล้ว: เห็นคะแนนอย่างเดียว
+                    actionArea = `<div class="font-bold text-brand-dark text-xl">${opt.score}</div>`;
+                } else {
+                    // Voter ที่ยังไม่โหวต: เห็นปุ่มโหวต
+                    actionArea = `<button onclick="vote(${opt.id})" class="bg-brand text-white px-6 py-2 rounded-xl font-bold hover:bg-teal-500 transition">โหวต</button>`;
+                }
+
                 div.innerHTML = `
-                    <div class="flex items-center w-full sm:w-auto">
-                        <div class="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center text-2xl mr-4 shrink-0 shadow-inner">
-                            ${opt.emoji}
-                        </div>
+                    <div class="flex items-center">
+                        <div class="text-2xl mr-4">${opt.emoji}</div>
                         <div>
-                            <h4 class="font-bold text-gray-800">${opt.name}</h4>
-                            <p class="text-sm text-gray-500">${opt.subName}</p>
+                            <div class="font-bold text-gray-800">${opt.name}</div>
+                            <div class="text-xs text-gray-400">${opt.sub}</div>
                         </div>
                     </div>
-                    
-                    <div class="flex items-center justify-between w-full sm:w-auto gap-4 sm:gap-6">
-                        <div class="text-center">
-                            <p class="text-xs font-semibold text-gray-500">คะแนนโหวต</p>
-                            <p class="font-bold text-gray-800 text-lg">${opt.score}</p>
-                        </div>
-                        
-                        <div class="flex gap-2">
-                            <button onclick="editOption(${opt.id})" class="bg-brand-light hover:bg-brand text-gray-700 hover:text-white w-10 h-10 rounded-xl flex items-center justify-center transition flex-col gap-1">
-                                <i class="fa-solid fa-pen text-sm"></i>
-                            </button>
-                            <button onclick="deleteOption(${opt.id})" class="bg-red-50 hover:bg-red-500 text-red-500 hover:text-white w-10 h-10 rounded-xl flex items-center justify-center transition flex-col gap-1">
-                                <i class="fa-solid fa-trash text-sm"></i>
-                            </button>
-                        </div>
-                    </div>
+                    ${actionArea}
                 `;
-                listContainer.appendChild(div);
+                list.appendChild(div);
             });
         }
 
-        // เพิ่มตัวเลือก (ใช้ SweetAlert2 Multi-input)
-        async function addOption() {
+        // --- ฟังก์ชันสำหรับ ADMIN เท่านั้น ---
+
+        async function editHeader() {
+            if (!isAdmin) return;
             const { value: formValues } = await Swal.fire({
-                title: 'เพิ่มร้านอาหาร',
+                title: 'แก้ไขหัวข้อโพล',
                 html:
-                    '<input id="swal-input1" class="swal2-input" placeholder="ชื่อร้านภาษาไทย (เช่น ร้านซูชิ)">' +
-                    '<input id="swal-input2" class="swal2-input" placeholder="ชื่อภาษาอังกฤษ (เช่น Delicious Sushi)">',
-                focusConfirm: false,
-                showCancelButton: true,
+                    `<input id="swal-title" class="swal2-input" value="${pollData.title}" placeholder="หัวข้อหลัก">` +
+                    `<textarea id="swal-desc" class="swal2-textarea" placeholder="รายละเอียด">${pollData.desc}</textarea>`,
                 confirmButtonColor: '#9ad0c2',
-                confirmButtonText: 'เพิ่ม',
-                cancelButtonText: 'ยกเลิก',
-                preConfirm: () => {
-                    const name = document.getElementById('swal-input1').value;
-                    if(!name) {
-                        Swal.showValidationMessage('กรุณากรอกชื่อร้านอย่างน้อย 1 ภาษา');
-                    }
-                    return [
-                        name,
-                        document.getElementById('swal-input2').value
-                    ]
-                }
+                preConfirm: () => [
+                    document.getElementById('swal-title').value,
+                    document.getElementById('swal-desc').value
+                ]
             });
 
             if (formValues) {
-                const newId = options.length > 0 ? Math.max(...options.map(o => o.id)) + 1 : 1;
-                // สุ่ม Emoji ง่ายๆ สำหรับร้านที่เพิ่มใหม่
-                const emojis = ['🍽️', '🥗', '🍕', '🥩', '🍲', '🍱'];
-                const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-
-                options.push({ 
-                    id: newId, 
-                    name: formValues[0], 
-                    subName: formValues[1],
-                    score: 0,
-                    emoji: randomEmoji
-                });
-                
-                renderOptions();
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'เพิ่มร้านอาหารสำเร็จ',
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 2000
-                });
+                pollData.title = formValues[0];
+                pollData.desc = formValues[1];
+                saveToLocal();
+                updateDisplay();
             }
         }
 
-        // แก้ไขตัวเลือก
-        async function editOption(id) {
-            const target = options.find(o => o.id === id);
-            
-            const { value: formValues } = await Swal.fire({
-                title: 'แก้ไขข้อมูลร้าน',
-                html:
-                    `<input id="swal-edit1" class="swal2-input" value="${target.name}" placeholder="ชื่อร้านภาษาไทย">` +
-                    `<input id="swal-edit2" class="swal2-input" value="${target.subName}" placeholder="ชื่อภาษาอังกฤษ">`,
-                focusConfirm: false,
-                showCancelButton: true,
-                confirmButtonColor: '#9ad0c2',
-                confirmButtonText: 'บันทึก',
-                cancelButtonText: 'ยกเลิก',
-                preConfirm: () => {
-                    const name = document.getElementById('swal-edit1').value;
-                    if(!name) {
-                        Swal.showValidationMessage('กรุณากรอกชื่อร้าน');
-                    }
-                    return [
-                        name,
-                        document.getElementById('swal-edit2').value
-                    ]
-                }
-            });
-
-            if (formValues) {
-                target.name = formValues[0];
-                target.subName = formValues[1];
-                renderOptions();
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'อัปเดตข้อมูลเรียบร้อย',
-                    toast: true,
-                    position: 'top-end',
-                    showConfirmButton: false,
-                    timer: 1500
-                });
-            }
-        }
-
-        // ลบตัวเลือก
-        function deleteOption(id) {
+        function addOption() {
+            if (!isAdmin) return;
             Swal.fire({
-                title: 'ยืนยันการลบ?',
-                text: "ลบแล้วจะไม่สามารถนำกลับมาได้",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#ef4444',
-                cancelButtonColor: '#e5e7eb',
-                cancelButtonText: '<span style="color: black">ยกเลิก</span>',
-                confirmButtonText: 'ลบเลย',
-                reverseButtons: true
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    options = options.filter(o => o.id !== id);
-                    renderOptions();
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'ลบข้อมูลเรียบร้อย',
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 1500
+                title: 'เพิ่มร้านอาหารใหม่',
+                html: '<input id="n1" class="swal2-input" placeholder="ชื่อร้าน (ไทย)"><input id="n2" class="swal2-input" placeholder="ชื่อร้าน (Eng)">',
+                confirmButtonColor: '#9ad0c2',
+                preConfirm: () => [document.getElementById('n1').value, document.getElementById('n2').value]
+            }).then(res => {
+                if (res.value && res.value[0]) {
+                    pollData.options.push({
+                        id: Date.now(),
+                        name: res.value[0],
+                        sub: res.value[1],
+                        score: 0,
+                        emoji: '🍴'
                     });
+                    saveToLocal();
+                    updateDisplay();
                 }
             });
         }
 
-        function shareLink() {
-            navigator.clipboard.writeText("https://example.com/poll/12345");
-            Swal.fire({
-                icon: 'success',
-                title: 'คัดลอกลิงก์สำเร็จ',
-                text: 'นำลิงก์ไปส่งในแชทได้เลยครับ',
-                confirmButtonColor: '#9ad0c2'
-            });
+        function deleteOption(id) {
+            if (!isAdmin) return;
+            pollData.options = pollData.options.filter(o => o.id !== id);
+            saveToLocal();
+            updateDisplay();
         }
 
-        function shareEmail() {
+        function copyVoterLink() {
+            const voterUrl = window.location.href.split('?')[0]; // ตัด ?auth=... ออก
+            navigator.clipboard.writeText(voterUrl);
+            Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์สำเร็จ', text: 'ส่งลิงก์นี้ให้ผู้โหวตได้เลย (ผู้รับจะไม่เห็นเมนู Admin)', confirmButtonColor: '#265073' });
+        }
+
+        // --- ฟังก์ชันสำหรับ VOTER ---
+
+        function vote(id) {
             Swal.fire({
-                title: 'เปิดแอปอีเมล?',
-                text: 'ระบบจะพาคุณไปยังแอปส่งอีเมลในเครื่อง',
+                title: 'ยืนยันการลงคะแนน?',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonColor: '#9ad0c2',
-                cancelButtonColor: '#e5e7eb',
-                cancelButtonText: '<span style="color: black">ยกเลิก</span>',
-                confirmButtonText: 'ตกลง'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = "mailto:?subject=ชวนโหวตร้านอาหาร&body=มาร่วมโหวตร้านอาหารกันครับ: https://example.com/poll/12345";
+                confirmButtonColor: '#9ad0c2'
+            }).then(res => {
+                if (res.isConfirmed) {
+                    const target = pollData.options.find(o => o.id === id);
+                    target.score++;
+                    localStorage.setItem('voted_status', 'true');
+                    saveToLocal();
+                    updateDisplay();
+                    Swal.fire({ icon: 'success', title: 'โหวตสำเร็จ!', showConfirmButton: false, timer: 1500 });
                 }
             });
         }
 
-        // กำหนดวันที่เริ่มต้นเป็นวันนี้ (ปี 2023 ตามภาพตัวอย่าง หรือเปลี่ยนเป็นปีปัจจุบัน)
-        document.addEventListener('DOMContentLoaded', () => {
-            renderOptions();
-            
-            // Set Default Dates (จำลองตามรูปภาพอ้างอิง)
-            document.getElementById('startDate').value = '2023-03-03';
-            document.getElementById('endDate').value = '2024-03-03';
-        });
+        function saveToLocal() {
+            localStorage.setItem('poll_content', JSON.stringify(pollData));
+        }
+
+        document.addEventListener('DOMContentLoaded', initApp);
     </script>
 </body>
 </html>
