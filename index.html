@@ -126,11 +126,17 @@
         }
 
         function getPollStatus() {
-            const now = new Date();
-            now.setHours(0,0,0,0);
-            const start = new Date(pollData.config.startDate);
-            const end = new Date(pollData.config.endDate);
-            
+            const now = new Date(); // เวลาปัจจุบัน ณ ตอนที่เปิดเว็บ
+
+            // ป้องกันปัญหา Timezone (UTC) โดยการแยก ปี-เดือน-วัน แล้วสร้าง Date ใหม่ใน Local Time
+            const [startYear, startMonth, startDay] = pollData.config.startDate.split('-');
+            const start = new Date(startYear, startMonth - 1, startDay);
+            start.setHours(0, 0, 0, 0); // ให้เวลาเริ่มคือ 00:00:00 น. ของวันที่กำหนด
+
+            const [endYear, endMonth, endDay] = pollData.config.endDate.split('-');
+            const end = new Date(endYear, endMonth - 1, endDay);
+            end.setHours(23, 59, 59, 999); // ให้เวลาสิ้นสุดครอบคลุมถึง 23:59:59 น. ของวันที่กำหนด
+
             if (now < start) return { active: false, msg: 'ยังไม่เปิดให้โหวต', type: 'pending' };
             if (now > end) return { active: false, msg: 'ปิดรับโหวตแล้ว', type: 'expired' };
             return { active: true, msg: 'เปิดให้โหวต', type: 'active' };
