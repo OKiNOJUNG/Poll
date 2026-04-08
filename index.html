@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>แบบสำรวจร้านอาหาร (เชื่อมต่อระบบกลาง)</title>
+    <title>ระบบบริหารจัดการ Poll ร้านอาหาร</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -14,8 +14,9 @@
     <style>
         body { background-color: #f0fdfa; font-family: 'Segoe UI', sans-serif; }
         .glass-card { background: rgba(255, 255, 255, 0.98); box-shadow: 0 15px 35px rgba(45, 106, 79, 0.1); }
+        .admin-only { border: 2px dashed #9ad0c2; position: relative; }
+        .admin-label { position: absolute; top: -12px; left: 10px; background: #9ad0c2; color: white; padding: 0 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }
         .progress-bar-fill { transition: width 1s cubic-bezier(0.4, 0, 0.2, 1); }
-        /* Loader อนิเมชั่น */
         .loader { border: 3px solid #f3f3f3; border-top: 3px solid #9ad0c2; border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; display: inline-block; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
@@ -29,28 +30,60 @@
 
     <div class="glass-card rounded-3xl w-full max-w-2xl p-6 md:p-10 border-t-8 border-brand shadow-xl">
         
-        <div class="mb-8">
-            <h1 class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">แบบสำรวจร้านอาหารที่จะไปทาน</h1>
-            <p id="displayDesc" class="text-gray-500">กรุณาเลือกร้านที่คุณอยากไปทานร่วมกัน (1 รหัสพนักงาน / 1 สิทธิ์)</p>
+        <div class="mb-8 relative" id="headerContainer">
+            <div class="flex justify-between items-start">
+                <div class="flex-1">
+                    <h1 id="displayTitle" class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">แบบสำรวจร้านอาหาร</h1>
+                    <p id="displayDesc" class="text-gray-500">กรุณาเลือกร้านที่คุณอยากไปทานร่วมกัน (1 รหัสพนักงาน / 1 สิทธิ์)</p>
+                </div>
+                <button id="btnEditHeader" onclick="editHeader()" class="hidden bg-gray-100 hover:bg-gray-200 p-2 rounded-lg ml-2 transition shadow-sm">
+                    <i class="fa-solid fa-pen-to-square text-brand-dark"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="adminDateSection" class="hidden bg-brand-light rounded-2xl p-5 mb-8 admin-only">
+            <span class="admin-label">ระยะเวลาแบบสำรวจ (Admin Only)</span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">วันเริ่มต้น</label>
+                    <input type="date" id="startDate" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">วันสิ้นสุด</label>
+                    <input type="date" id="endDate" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
+                </div>
+            </div>
         </div>
 
         <div class="mb-8">
-            <h3 id="optionsTitle" class="text-lg font-bold text-gray-800 mb-4">ตัวเลือกร้านอาหาร</h3>
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="optionsTitle" class="text-lg font-bold text-gray-800">ตัวเลือกร้านอาหาร</h3>
+                <button id="adminAddBtn" onclick="notifyLocalLimit()" class="hidden bg-brand hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
+                    <i class="fa-solid fa-plus mr-1"></i> เพิ่มร้าน
+                </button>
+            </div>
             <div id="optionsList" class="space-y-4"></div>
+        </div>
+
+        <div id="adminShareSection" class="hidden border-t border-gray-100 pt-6">
+            <button onclick="copyVoterLink()" class="w-full bg-brand-dark hover:bg-slate-800 text-white px-6 py-4 rounded-2xl font-bold transition flex items-center justify-center shadow-lg">
+                <i class="fa-solid fa-share-nodes mr-2"></i> คัดลอกลิงก์ส่งให้ผู้ร่วมโหวต
+            </button>
         </div>
 
     </div>
 
     <script>
-        // ==========================================
-        // URL ของ Web App จาก Google Apps Script
-        // ==========================================
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwS4xyI6O9mhG3vEtVIyBBf7AIK4Fy8hBbxWgc8tGk2JIWfCkEW0ZWVYa5GEYg2_sYESA/exec'; 
 
-        // ตรวจสอบว่าในเครื่องนี้เคยโหวตหรือยัง
+        const params = new URLSearchParams(window.location.search);
+        const isAdmin = params.get('auth') === 'admin123';
         const hasVotedLocal = localStorage.getItem('voted_status') === 'true';
 
         let pollData = {
+            title: "แบบสำรวจร้านอาหารที่จะไปทาน",
+            desc: "กรุณาเลือกร้านที่คุณอยากไปทานร่วมกัน (1 รหัสพนักงาน / 1 สิทธิ์)",
             options: [
                 { id: 1, name: 'ร้านซูชิ อร่อยเหาะ', sub: 'Delicious Sushi', score: 0, emoji: '🍣' },
                 { id: 2, name: 'ร้านสเต็ก ย่างก้าว', sub: 'Step Steakhouse', score: 0, emoji: '🍔' },
@@ -60,24 +93,34 @@
             totalVotes: 0
         };
 
-        // เริ่มต้นการทำงาน โหลดข้อมูลจาก Database ทันที
         async function initApp() {
-            if(hasVotedLocal) {
+            // โหลดข้อมูล UI จาก LocalStorage (สำหรับ Admin)
+            const savedData = localStorage.getItem('poll_content_ui');
+            if (savedData) {
+                const parsed = JSON.parse(savedData);
+                pollData.title = parsed.title;
+                pollData.desc = parsed.desc;
+            }
+
+            if (isAdmin) {
+                document.getElementById('btnEditHeader').classList.remove('hidden');
+                document.getElementById('adminDateSection').classList.remove('hidden');
+                document.getElementById('adminAddBtn').classList.remove('hidden');
+                document.getElementById('adminShareSection').classList.remove('hidden');
+            } else if (hasVotedLocal) {
                 document.getElementById('displayDesc').innerText = "ขอบคุณที่ร่วมโหวต! ด้านล่างคือผลการโหวตทั้งหมดแบบ Real-time";
                 document.getElementById('displayDesc').className = "text-brand-dark font-semibold";
+                document.getElementById('optionsTitle').innerText = "ผลคะแนนล่าสุด";
             }
+
+            document.getElementById('displayTitle').innerText = pollData.title;
+            if(!hasVotedLocal || isAdmin) document.getElementById('displayDesc').innerText = pollData.desc;
+
             await fetchScores();
         }
 
-        // ดึงคะแนนล่าสุดจาก Google Sheets
         async function fetchScores() {
-            if(!SCRIPT_URL || SCRIPT_URL === 'วาง_WEB_APP_URL_ของคุณที่นี่') {
-                renderOptions(); 
-                return;
-            }
-
             document.getElementById('loadingOverlay').classList.remove('hidden');
-            
             try {
                 const response = await fetch(SCRIPT_URL);
                 const result = await response.json();
@@ -87,7 +130,7 @@
                     opt.score = result.scores[opt.id] || 0;
                 });
             } catch (error) {
-                console.error("Error fetching data:", error);
+                console.error("Error:", error);
             } finally {
                 document.getElementById('loadingOverlay').classList.add('hidden');
                 renderOptions();
@@ -99,7 +142,7 @@
             list.innerHTML = '';
             
             let displayOptions = [...pollData.options];
-            if (hasVotedLocal) {
+            if (hasVotedLocal && !isAdmin) {
                 displayOptions.sort((a, b) => b.score - a.score);
             }
 
@@ -110,13 +153,16 @@
                 let actionArea = '';
                 let percentBar = '';
 
-                if (hasVotedLocal) {
+                // หากโหวตแล้ว หรือเป็น Admin ให้ดูคะแนนได้
+                if (hasVotedLocal || isAdmin) {
                     const percent = pollData.totalVotes > 0 ? Math.round((opt.score / pollData.totalVotes) * 100) : 0;
                     percentBar = `<div class="absolute top-0 left-0 h-full bg-brand-light progress-bar-fill -z-10" style="width: 0%;" data-target-width="${percent}%"></div>`;
                     actionArea = `
-                        <div class="text-right mr-2">
-                            <span class="text-lg font-bold text-brand-dark">${percent}%</span>
-                            <span class="block text-xs text-gray-500">(${opt.score} โหวต)</span>
+                        <div class="flex items-center gap-4">
+                            <div class="text-right mr-2">
+                                <span class="text-lg font-bold text-brand-dark">${percent}%</span>
+                                <span class="block text-xs text-gray-500">(${opt.score} โหวต)</span>
+                            </div>
                         </div>
                     `;
                 } else {
@@ -146,31 +192,20 @@
             }, 100);
         }
 
-        // ฟังก์ชันเมื่อกดโหวต (ส่งไปตรวจสอบที่ Backend)
         function vote(id) {
             Swal.fire({
                 title: 'ยืนยันตัวตน',
-                text: 'กรุณากรอกรหัสพนักงาน (Employee ID) ของคุณเพื่อลงคะแนน',
+                text: 'กรุณากรอกรหัสพนักงาน (Employee ID) เพื่อลงคะแนน',
                 input: 'text',
-                inputPlaceholder: 'เช่น 105XXX',
                 icon: 'info',
                 showCancelButton: true,
                 confirmButtonColor: '#9ad0c2',
-                confirmButtonText: 'ยืนยันการโหวต',
-                cancelButtonText: 'ยกเลิก',
-                inputValidator: (value) => {
-                    if (!value) return 'คุณต้องกรอกรหัสพนักงานก่อนครับ!'
-                }
+                confirmButtonText: 'ยืนยัน',
+                inputValidator: (value) => { if (!value) return 'กรุณากรอกรหัสพนักงาน!' }
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const empId = result.value.trim().toUpperCase();
-                    
-                    Swal.fire({
-                        title: 'กำลังตรวจสอบสิทธิ์...',
-                        text: 'กรุณารอสักครู่ ระบบกำลังเช็คข้อมูลกับฐานข้อมูลส่วนกลาง',
-                        allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading() }
-                    });
+                    Swal.fire({ title: 'ตรวจสอบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
                     try {
                         const response = await fetch(SCRIPT_URL, {
@@ -178,34 +213,52 @@
                             body: JSON.stringify({ empId: empId, voteId: id }),
                             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
                         });
-                        
                         const resData = await response.json();
 
                         if(resData.success) {
                             localStorage.setItem('voted_status', 'true'); 
-                            Swal.fire({ 
-                                icon: 'success', 
-                                title: 'บันทึกคะแนนสำเร็จ!', 
-                                text: 'ขอบคุณที่ร่วมโหวต',
-                                timer: 2000,
-                                showConfirmButton: false
-                            }).then(() => {
-                                window.location.reload(); 
-                            });
+                            Swal.fire({ icon: 'success', title: 'สำเร็จ!', showConfirmButton: false, timer: 1500 }).then(() => window.location.reload());
                         } else {
-                            Swal.fire({ 
-                                icon: 'error', 
-                                title: 'ไม่สามารถโหวตได้', 
-                                text: resData.message, 
-                                confirmButtonColor: '#265073'
-                            });
+                            Swal.fire({ icon: 'error', title: 'ผิดพลาด', text: resData.message });
                         }
-
                     } catch(err) {
-                        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้ ลองใหม่อีกครั้งครับ', 'error');
+                        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
                     }
                 }
             });
+        }
+
+        // --- ฟังก์ชัน Admin ---
+        async function editHeader() {
+            if (!isAdmin) return;
+            const { value: formValues } = await Swal.fire({
+                title: 'แก้ไขข้อความหน้าเว็บ',
+                html: `<input id="swal-title" class="swal2-input" value="${pollData.title}"><textarea id="swal-desc" class="swal2-textarea">${pollData.desc}</textarea>`,
+                confirmButtonColor: '#9ad0c2',
+                preConfirm: () => [document.getElementById('swal-title').value, document.getElementById('swal-desc').value]
+            });
+            if (formValues) { 
+                pollData.title = formValues[0]; 
+                pollData.desc = formValues[1]; 
+                localStorage.setItem('poll_content_ui', JSON.stringify({title: pollData.title, desc: pollData.desc}));
+                document.getElementById('displayTitle').innerText = pollData.title;
+                document.getElementById('displayDesc').innerText = pollData.desc;
+            }
+        }
+
+        function notifyLocalLimit() {
+            Swal.fire({
+                icon: 'info',
+                title: 'ข้อมูลเชิงเทคนิค',
+                text: 'เนื่องจากระบบมีการเชื่อมต่อกับฐานข้อมูล Google Sheets การเพิ่ม/ลบร้านค้าจะต้องแก้ไขข้อมูลเริ่มต้น (Options) ใน Source Code โดยตรง เพื่อให้พนักงานทุกคนเห็นตัวเลือกตรงกันครับ',
+                confirmButtonColor: '#265073'
+            });
+        }
+
+        function copyVoterLink() {
+            const voterUrl = window.location.href.split('?')[0]; 
+            navigator.clipboard.writeText(voterUrl);
+            Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์สำเร็จ', confirmButtonColor: '#265073' });
         }
 
         document.addEventListener('DOMContentLoaded', initApp);
