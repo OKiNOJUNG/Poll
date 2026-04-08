@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบบริหารจัดการ Poll ร้านอาหาร</title>
+    <title>ระบบบริหารจัดการ Poll ร้านอาหาร (Real-time)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -25,7 +25,7 @@
 
     <div id="loadingOverlay" class="fixed inset-0 bg-white/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center hidden">
         <div class="loader mb-4" style="width: 50px; height: 50px; border-width: 5px;"></div>
-        <p class="text-brand-dark font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลกับฐานข้อมูลส่วนกลาง...</p>
+        <p id="loadingText" class="text-brand-dark font-bold text-lg animate-pulse">กำลังซิงค์ข้อมูลส่วนกลาง...</p>
     </div>
 
     <div class="glass-card rounded-3xl w-full max-w-2xl p-6 md:p-10 border-t-8 border-brand shadow-xl">
@@ -33,12 +33,10 @@
         <div class="mb-8 relative" id="headerContainer">
             <div class="flex justify-between items-start">
                 <div class="flex-1">
-                    <h1 id="displayTitle" class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">แบบสำรวจร้านอาหาร</h1>
-                    <p id="displayDesc" class="text-gray-500">กรุณาเลือกร้านที่คุณอยากไปทานร่วมกัน (1 รหัสพนักงาน / 1 สิทธิ์)</p>
-                    
-                    <div id="pollDateDisplay" class="mt-4 inline-flex items-center text-sm font-medium px-4 py-2 rounded-full border transition-colors">
-                        <i class="fa-regular fa-clock mr-2"></i>
-                        <span id="dateText">กำลังโหลดข้อมูล...</span>
+                    <h1 id="displayTitle" class="text-2xl md:text-3xl font-bold text-gray-800 mb-2">กำลังโหลดข้อมูล...</h1>
+                    <p id="displayDesc" class="text-gray-500">กรุณารอสักครู่</p>
+                    <div id="pollDateDisplay" class="mt-4 inline-flex items-center text-sm font-medium px-4 py-2 rounded-full border transition-colors hidden">
+                        <i class="fa-regular fa-clock mr-2"></i><span id="dateText"></span>
                     </div>
                 </div>
                 <button id="btnEditHeader" onclick="editHeader()" class="hidden bg-gray-100 hover:bg-gray-200 p-2 rounded-lg ml-2 transition shadow-sm">
@@ -48,24 +46,23 @@
         </div>
 
         <div id="adminDateSection" class="hidden bg-brand-light rounded-2xl p-5 mb-8 admin-only">
-            <span class="admin-label">ระยะเวลาแบบสำรวจ (Admin Only)</span>
+            <span class="admin-label">ตั้งค่าระบบ (Admin Only)</span>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">วันเริ่มต้น</label>
-                    <input type="date" id="startDate" onchange="saveConfig()" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
+                    <input type="date" id="startDate" onchange="syncConfigToServer()" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
                 </div>
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">วันสิ้นสุด</label>
-                    <input type="date" id="endDate" onchange="saveConfig()" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
+                    <input type="date" id="endDate" onchange="syncConfigToServer()" class="w-full px-4 py-2 rounded-xl border-none shadow-sm focus:ring-2 focus:ring-brand outline-none text-gray-700">
                 </div>
             </div>
-            <p class="text-[10px] text-teal-700 mt-2">* การเปลี่ยนวันที่ในหน้า Admin จะแสดงผลให้ผู้ใช้งานเห็นทันที</p>
         </div>
 
         <div class="mb-8">
             <div class="flex justify-between items-center mb-4">
                 <h3 id="optionsTitle" class="text-lg font-bold text-gray-800">ตัวเลือกร้านอาหาร</h3>
-                <button id="adminAddBtn" onclick="notifyLocalLimit()" class="hidden bg-brand hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
+                <button id="adminAddBtn" onclick="addOption()" class="hidden bg-brand hover:bg-teal-500 text-white px-4 py-2 rounded-xl text-sm font-semibold transition shadow-sm">
                     <i class="fa-solid fa-plus mr-1"></i> เพิ่มร้าน
                 </button>
             </div>
@@ -87,114 +84,109 @@
         const isAdmin = params.get('auth') === 'admin123';
         const hasVotedLocal = localStorage.getItem('voted_status') === 'true';
 
-        let pollData = {
-            title: "แบบสำรวจร้านอาหารที่จะไปทาน",
-            desc: "กรุณาเลือกร้านที่คุณอยากไปทานร่วมกัน (1 รหัสพนักงาน / 1 สิทธิ์)",
-            startDate: "2024-01-01",
-            endDate: "2024-12-31",
-            options: [
-                { id: 1, name: 'ร้านซูชิ อร่อยเหาะ', sub: 'Delicious Sushi', score: 0, emoji: '🍣' },
-                { id: 2, name: 'ร้านสเต็ก ย่างก้าว', sub: 'Step Steakhouse', score: 0, emoji: '🍔' },
-                { id: 3, name: 'ร้านอาหารไทย ทิพย์สมัย', sub: 'Thipsamai Thai', score: 0, emoji: '🍜' },
-                { id: 4, name: 'ร้านแกมซา', sub: 'Thai', score: 0, emoji: '🥘' }
-            ],
-            totalVotes: 0
-        };
+        // โครงสร้างข้อมูลหลัก
+        let pollData = { config: {}, scores: {}, totalVotes: 0 };
 
-        // ฟังก์ชันแปลงรูปแบบวันที่ให้เป็นภาษาไทย (เช่น 31 ธ.ค. 2567)
         function formatDateThai(dateString) {
             const date = new Date(dateString);
             return date.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
         }
 
         async function initApp() {
-            const savedData = localStorage.getItem('poll_content_ui');
-            if (savedData) {
-                const parsed = JSON.parse(savedData);
-                pollData.title = parsed.title;
-                pollData.desc = parsed.desc;
-                pollData.startDate = parsed.startDate || pollData.startDate;
-                pollData.endDate = parsed.endDate || pollData.endDate;
-            }
-
             if (isAdmin) {
                 document.getElementById('btnEditHeader').classList.remove('hidden');
                 document.getElementById('adminDateSection').classList.remove('hidden');
                 document.getElementById('adminAddBtn').classList.remove('hidden');
                 document.getElementById('adminShareSection').classList.remove('hidden');
-                document.getElementById('startDate').value = pollData.startDate;
-                document.getElementById('endDate').value = pollData.endDate;
             } else if (hasVotedLocal) {
-                document.getElementById('displayDesc').innerText = "ขอบคุณที่ร่วมโหวต! ด้านล่างคือผลการโหวตทั้งหมดแบบ Real-time";
                 document.getElementById('displayDesc').className = "text-brand-dark font-semibold";
                 document.getElementById('optionsTitle').innerText = "ผลคะแนนล่าสุด";
             }
-
-            document.getElementById('displayTitle').innerText = pollData.title;
-            if(!hasVotedLocal || isAdmin) document.getElementById('displayDesc').innerText = pollData.desc;
-
-            updateDateDisplay(); // เรียกอัปเดตป้ายกำกับวันที่
-            await fetchScores();
+            await fetchAllData();
         }
 
-        // ฟังก์ชันตรวจสอบความพร้อมของช่วงเวลา
+        // โหลดข้อมูลทั้งหมดจาก Database (Config + Scores)
+        async function fetchAllData() {
+            showLoading('กำลังโหลดข้อมูล...');
+            try {
+                const response = await fetch(SCRIPT_URL);
+                const result = await response.json();
+                
+                pollData.config = result.config;
+                pollData.scores = result.scores;
+                pollData.totalVotes = result.total;
+
+                updateUI();
+            } catch (error) {
+                console.error("Error:", error);
+                Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
         function getPollStatus() {
             const now = new Date();
             now.setHours(0,0,0,0);
-            const start = new Date(pollData.startDate);
-            const end = new Date(pollData.endDate);
+            const start = new Date(pollData.config.startDate);
+            const end = new Date(pollData.config.endDate);
             
             if (now < start) return { active: false, msg: 'ยังไม่เปิดให้โหวต', type: 'pending' };
             if (now > end) return { active: false, msg: 'ปิดรับโหวตแล้ว', type: 'expired' };
             return { active: true, msg: 'เปิดให้โหวต', type: 'active' };
         }
 
-        // ฟังก์ชันอัปเดตการแสดงผลป้ายกำกับวันที่และสี
-        function updateDateDisplay() {
-            const startStr = formatDateThai(pollData.startDate);
-            const endStr = formatDateThai(pollData.endDate);
-            const status = getPollStatus();
+        // อัปเดตหน้าจอทั้งหมด
+        function updateUI() {
+            document.getElementById('displayTitle').innerText = pollData.config.title;
+            if (hasVotedLocal && !isAdmin) {
+                document.getElementById('displayDesc').innerText = "ขอบคุณที่ร่วมโหวต! ด้านล่างคือผลการโหวตทั้งหมดแบบ Real-time";
+            } else {
+                document.getElementById('displayDesc').innerText = pollData.config.desc;
+            }
+
+            // จัดการวันที่ (Admin + User)
+            if(isAdmin) {
+                document.getElementById('startDate').value = pollData.config.startDate;
+                document.getElementById('endDate').value = pollData.config.endDate;
+            }
             
             const badge = document.getElementById('pollDateDisplay');
-            let statusText = `เปิดรับโหวต: ${startStr} - ${endStr}`;
+            badge.classList.remove('hidden');
+            const status = getPollStatus();
+            const startStr = formatDateThai(pollData.config.startDate);
+            const endStr = formatDateThai(pollData.config.endDate);
 
             if (status.type === 'active') {
                 badge.className = "mt-4 inline-flex items-center bg-teal-50 text-teal-700 text-sm font-medium px-4 py-2 rounded-full border border-teal-200 transition-colors";
+                document.getElementById('dateText').innerText = `เปิดรับโหวต: ${startStr} - ${endStr}`;
             } else if (status.type === 'expired') {
                 badge.className = "mt-4 inline-flex items-center bg-red-50 text-red-600 text-sm font-medium px-4 py-2 rounded-full border border-red-200 transition-colors";
-                statusText = `หมดเวลาโหวต (สิ้นสุดเมื่อ ${endStr})`;
+                document.getElementById('dateText').innerText = `หมดเวลาโหวต (สิ้นสุดเมื่อ ${endStr})`;
             } else {
                 badge.className = "mt-4 inline-flex items-center bg-yellow-50 text-yellow-600 text-sm font-medium px-4 py-2 rounded-full border border-yellow-200 transition-colors";
+                document.getElementById('dateText').innerText = `เปิดรับโหวต: ${startStr} - ${endStr}`;
             }
 
-            document.getElementById('dateText').innerText = statusText;
+            renderOptionsList(status);
         }
 
-        async function fetchScores() {
-            document.getElementById('loadingOverlay').classList.remove('hidden');
-            try {
-                const response = await fetch(SCRIPT_URL);
-                const result = await response.json();
-                pollData.totalVotes = result.total;
-                pollData.options.forEach(opt => {
-                    opt.score = result.scores[opt.id] || 0;
-                });
-            } catch (error) {
-                console.error("Error:", error);
-            } finally {
-                document.getElementById('loadingOverlay').classList.add('hidden');
-                renderOptions();
-            }
-        }
-
-        function renderOptions() {
+        function renderOptionsList(status) {
             const list = document.getElementById('optionsList');
             list.innerHTML = '';
             
-            const status = getPollStatus();
-            let displayOptions = [...pollData.options];
+            // นำคะแนนใส่ลงไปในออปชันเพื่อเตรียมจัดเรียง
+            let displayOptions = pollData.config.options.map(opt => ({
+                ...opt,
+                score: pollData.scores[opt.id] || 0
+            }));
+
             if (hasVotedLocal && !isAdmin) {
                 displayOptions.sort((a, b) => b.score - a.score);
+            }
+
+            if (displayOptions.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 py-4">ยังไม่มีตัวเลือกร้านอาหาร</p>';
             }
 
             displayOptions.forEach(opt => {
@@ -207,10 +199,14 @@
                 if (hasVotedLocal || isAdmin) {
                     const percent = pollData.totalVotes > 0 ? Math.round((opt.score / pollData.totalVotes) * 100) : 0;
                     percentBar = `<div class="absolute top-0 left-0 h-full bg-brand-light progress-bar-fill -z-10" style="width: 0%;" data-target-width="${percent}%"></div>`;
+                    
                     actionArea = `
-                        <div class="text-right mr-2">
-                            <span class="text-lg font-bold text-brand-dark">${percent}%</span>
-                            <span class="block text-xs text-gray-500">(${opt.score} โหวต)</span>
+                        <div class="flex items-center gap-4">
+                            <div class="text-right mr-2">
+                                <span class="text-lg font-bold text-brand-dark">${percent}%</span>
+                                <span class="block text-xs text-gray-500">(${opt.score} โหวต)</span>
+                            </div>
+                            ${isAdmin ? `<button onclick="deleteOption(${opt.id})" class="text-red-300 hover:text-red-500 p-2 relative z-20"><i class="fa-solid fa-trash-can"></i></button>` : ''}
                         </div>
                     `;
                 } else {
@@ -225,10 +221,10 @@
                     ${percentBar}
                     <div class="flex items-center justify-between w-full">
                         <div class="flex items-center">
-                            <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-2xl mr-4 shrink-0">${opt.emoji}</div>
+                            <div class="w-12 h-12 bg-orange-50 rounded-full flex items-center justify-center text-2xl mr-4 shrink-0">${opt.emoji || '🍴'}</div>
                             <div>
                                 <div class="font-bold text-gray-800">${opt.name}</div>
-                                <div class="text-xs text-gray-500">${opt.sub}</div>
+                                <div class="text-xs text-gray-500">${opt.sub || ''}</div>
                             </div>
                         </div>
                         ${actionArea}
@@ -244,6 +240,96 @@
             }, 100);
         }
 
+        // ==========================================
+        // ส่วนการทำงานของฝั่ง ADMIN (แก้ไขข้อมูลแล้วยิงขึ้น Database)
+        // ==========================================
+
+        // ฟังก์ชันบันทึกการตั้งค่า (Config) ทับบน Database
+        async function syncConfigToServer() {
+            if (!isAdmin) return;
+            
+            // ดึงค่าวันที่ล่าสุดจากช่อง Input เผื่อมีการแก้ไข
+            pollData.config.startDate = document.getElementById('startDate').value;
+            pollData.config.endDate = document.getElementById('endDate').value;
+
+            showLoading('กำลังบันทึกการตั้งค่าลงระบบกลาง...');
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'update_config', config: pollData.config }),
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                });
+                const resData = await response.json();
+                if(resData.success) {
+                    // สร้าง Toast เด้งเตือนว่าสำเร็จ
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'อัปเดตระบบแล้ว', showConfirmButton: false, timer: 1500 });
+                    updateUI(); // รีเฟรชหน้าจอ
+                }
+            } catch(err) {
+                Swal.fire('ข้อผิดพลาด', 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function editHeader() {
+            if (!isAdmin) return;
+            const { value: formValues } = await Swal.fire({
+                title: 'แก้ไขหัวข้อและรายละเอียด',
+                html: `<input id="swal-title" class="swal2-input" value="${pollData.config.title}"><textarea id="swal-desc" class="swal2-textarea">${pollData.config.desc}</textarea>`,
+                confirmButtonColor: '#9ad0c2',
+                preConfirm: () => [document.getElementById('swal-title').value, document.getElementById('swal-desc').value]
+            });
+            if (formValues) { 
+                pollData.config.title = formValues[0]; 
+                pollData.config.desc = formValues[1]; 
+                await syncConfigToServer();
+            }
+        }
+
+        async function addOption() {
+            if (!isAdmin) return;
+            const emojis = ['🍣', '🍔', '🍜', '🥘', '🥩', '🥗', '🍕', '🍱'];
+            
+            Swal.fire({
+                title: 'เพิ่มตัวเลือกร้านอาหาร',
+                html: '<input id="n1" class="swal2-input" placeholder="ชื่อร้าน (ไทย)"><input id="n2" class="swal2-input" placeholder="รายละเอียดหรือชื่อ(Eng)">',
+                confirmButtonColor: '#9ad0c2',
+                preConfirm: () => [document.getElementById('n1').value, document.getElementById('n2').value]
+            }).then(async (res) => {
+                if (res.isConfirmed && res.value[0]) {
+                    const newId = Date.now(); // สร้างไอดีใหม่ไม่ให้ซ้ำ
+                    pollData.config.options.push({ 
+                        id: newId, 
+                        name: res.value[0], 
+                        sub: res.value[1], 
+                        emoji: emojis[Math.floor(Math.random() * emojis.length)] 
+                    });
+                    await syncConfigToServer();
+                }
+            });
+        }
+
+        function deleteOption(id) {
+            if (!isAdmin) return;
+            Swal.fire({
+                title: 'ยืนยันการลบตัวเลือก?',
+                text: "หากลบแล้วผู้ใช้จะไม่เห็นตัวเลือกนี้อีก",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: 'ลบเลย'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    pollData.config.options = pollData.config.options.filter(o => o.id !== id);
+                    await syncConfigToServer();
+                }
+            });
+        }
+
+        // ==========================================
+        // ส่วนการทำงานของฝั่ง USER (โหวต)
+        // ==========================================
         function vote(id) {
             const status = getPollStatus();
             if (!status.active) {
@@ -263,12 +349,12 @@
             }).then(async (result) => {
                 if (result.isConfirmed) {
                     const empId = result.value.trim().toUpperCase();
-                    Swal.fire({ title: 'ตรวจสอบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    showLoading('กำลังตรวจสอบสิทธิ์...');
 
                     try {
                         const response = await fetch(SCRIPT_URL, {
                             method: 'POST',
-                            body: JSON.stringify({ empId: empId, voteId: id }),
+                            body: JSON.stringify({ action: 'vote', empId: empId, voteId: id }),
                             headers: { 'Content-Type': 'text/plain;charset=utf-8' }
                         });
                         const resData = await response.json();
@@ -281,51 +367,25 @@
                         }
                     } catch(err) {
                         Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อฐานข้อมูลได้', 'error');
+                    } finally {
+                        hideLoading();
                     }
                 }
             });
-        }
-
-        // --- ฟังก์ชัน Admin ---
-        function saveConfig() {
-            if (!isAdmin) return;
-            pollData.startDate = document.getElementById('startDate').value;
-            pollData.endDate = document.getElementById('endDate').value;
-            localStorage.setItem('poll_content_ui', JSON.stringify({
-                title: pollData.title, 
-                desc: pollData.desc,
-                startDate: pollData.startDate,
-                endDate: pollData.endDate
-            }));
-            updateDateDisplay(); // อัปเดตป้ายกำกับทันทีเมื่อ Admin เปลี่ยนวันที่
-            renderOptions();     // อัปเดตปุ่มโหวต (เปิด/ปิดตามเวลา)
-        }
-
-        async function editHeader() {
-            if (!isAdmin) return;
-            const { value: formValues } = await Swal.fire({
-                title: 'แก้ไขข้อความหน้าเว็บ',
-                html: `<input id="swal-title" class="swal2-input" value="${pollData.title}"><textarea id="swal-desc" class="swal2-textarea">${pollData.desc}</textarea>`,
-                confirmButtonColor: '#9ad0c2',
-                preConfirm: () => [document.getElementById('swal-title').value, document.getElementById('swal-desc').value]
-            });
-            if (formValues) { 
-                pollData.title = formValues[0]; 
-                pollData.desc = formValues[1]; 
-                saveConfig();
-                document.getElementById('displayTitle').innerText = pollData.title;
-                document.getElementById('displayDesc').innerText = pollData.desc;
-            }
-        }
-
-        function notifyLocalLimit() {
-            Swal.fire({ icon: 'info', title: 'ข้อมูลเชิงเทคนิค', text: 'การเพิ่ม/ลบรายชื่อร้านค้า ต้องทำผ่านการแก้ไข Source Code เพื่อให้ฐานข้อมูล ID ของแต่ละคนตรงกันครับ', confirmButtonColor: '#265073' });
         }
 
         function copyVoterLink() {
             const voterUrl = window.location.href.split('?')[0]; 
             navigator.clipboard.writeText(voterUrl);
             Swal.fire({ icon: 'success', title: 'คัดลอกลิงก์สำเร็จ', text: 'ส่งลิงก์นี้ให้พนักงานโหวตได้เลย', confirmButtonColor: '#265073' });
+        }
+
+        function showLoading(text) {
+            document.getElementById('loadingText').innerText = text;
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
         }
 
         document.addEventListener('DOMContentLoaded', initApp);
