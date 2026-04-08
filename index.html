@@ -43,11 +43,11 @@
 
     <script>
         // ==========================================
-        // นำ URL ของ Web App จาก Google Apps Script มาวางที่นี่
+        // URL ของ Web App จาก Google Apps Script
         // ==========================================
-        const SCRIPT_URL = 'วาง_WEB_APP_URL_ของคุณที่นี่'; 
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwS4xyI6O9mhG3vEtVIyBBf7AIK4Fy8hBbxWgc8tGk2JIWfCkEW0ZWVYa5GEYg2_sYESA/exec'; 
 
-        // ตรวจสอบว่าในเครื่องนี้เคยโหวตหรือยัง (เพื่อ UX เบื้องต้น ไม่ให้ต้องกดไปเจอ Error บ่อยๆ)
+        // ตรวจสอบว่าในเครื่องนี้เคยโหวตหรือยัง
         const hasVotedLocal = localStorage.getItem('voted_status') === 'true';
 
         let pollData = {
@@ -63,7 +63,7 @@
         // เริ่มต้นการทำงาน โหลดข้อมูลจาก Database ทันที
         async function initApp() {
             if(hasVotedLocal) {
-                document.getElementById('displayDesc').innerText = "ขอบคุณที่ร่วมโหวต! ด้านล่างคือผลการโหวตจากพนักงานทั้งหมดแบบ Real-time";
+                document.getElementById('displayDesc').innerText = "ขอบคุณที่ร่วมโหวต! ด้านล่างคือผลการโหวตทั้งหมดแบบ Real-time";
                 document.getElementById('displayDesc').className = "text-brand-dark font-semibold";
             }
             await fetchScores();
@@ -71,8 +71,8 @@
 
         // ดึงคะแนนล่าสุดจาก Google Sheets
         async function fetchScores() {
-            if(SCRIPT_URL === 'วาง_WEB_APP_URL_ของคุณที่นี่') {
-                renderOptions(); // ข้ามไป render ถ้ายังไม่ได้ใส่ URL
+            if(!SCRIPT_URL || SCRIPT_URL === 'วาง_WEB_APP_URL_ของคุณที่นี่') {
+                renderOptions(); 
                 return;
             }
 
@@ -165,7 +165,6 @@
                 if (result.isConfirmed) {
                     const empId = result.value.trim().toUpperCase();
                     
-                    // แสดง Loading ระหว่างรอระบบตรวจสอบ
                     Swal.fire({
                         title: 'กำลังตรวจสอบสิทธิ์...',
                         text: 'กรุณารอสักครู่ ระบบกำลังเช็คข้อมูลกับฐานข้อมูลส่วนกลาง',
@@ -174,7 +173,6 @@
                     });
 
                     try {
-                        // ส่งข้อมูลไปที่ Google Sheets
                         const response = await fetch(SCRIPT_URL, {
                             method: 'POST',
                             body: JSON.stringify({ empId: empId, voteId: id }),
@@ -184,8 +182,7 @@
                         const resData = await response.json();
 
                         if(resData.success) {
-                            // รหัสผ่าน โหวตสำเร็จ
-                            localStorage.setItem('voted_status', 'true'); // จำไว้ในเครื่องด้วยเพื่อ UX ที่ดี
+                            localStorage.setItem('voted_status', 'true'); 
                             Swal.fire({ 
                                 icon: 'success', 
                                 title: 'บันทึกคะแนนสำเร็จ!', 
@@ -196,11 +193,10 @@
                                 window.location.reload(); 
                             });
                         } else {
-                            // รหัสนี้เคยโหวตไปแล้ว (ตรวจสอบพบโดย Backend)
                             Swal.fire({ 
                                 icon: 'error', 
                                 title: 'ไม่สามารถโหวตได้', 
-                                text: resData.message, // "รหัสพนักงานนี้ทำการลงคะแนนไปแล้ว"
+                                text: resData.message, 
                                 confirmButtonColor: '#265073'
                             });
                         }
